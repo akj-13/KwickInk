@@ -8,23 +8,23 @@ export default function Home() {
       <h2>HOME</h2>
       <p className="muted">Upload, slot, pay, collect with a 4-digit OTP. Short jobs never wait behind a thesis.</p>
       <div className="grid-2" style={{ marginTop: 22 }}>
-        <button className="tech-card glow" onClick={() => nav("/print")} style={{ cursor: "pointer", textAlign: "left" }}>
+        <button className="tech-card glow home-action" onClick={() => nav("/print")} style={{ cursor: "pointer", textAlign: "left" }}>
           <Printer className="action-icon" />
-          <h3 style="color: white">PRINT DOCUMENT</h3>
+          <h3>PRINT DOCUMENT</h3>
           <p className="muted">Magic-byte PDF validation · live ETA · dual-lane queue</p>
         </button>
-        <button className="tech-card" onClick={() => nav("/scan")} style={{ cursor: "pointer", textAlign: "left" }}>
+        <button className="tech-card glow home-action" onClick={() => nav("/scan")} style={{ cursor: "pointer", textAlign: "left" }}>
           <ScanLine className="action-icon" />
-          <h3 style="color: white">SCAN DOCUMENT</h3>
+          <h3>SCAN DOCUMENT</h3>
           <p className="muted">Book a scan window. Files land in your cloud history.</p>
         </button>
       </div>
       <div className="mini-row">
-        <button className="mini" onClick={() => nav("/scheduled")}>
+        <button className="mini home-mini glow" onClick={() => nav("/scheduled")}>
           <CalendarClock color="#22d3ee" />
           <div>Scheduled Jobs</div>
         </button>
-        <button className="mini" onClick={() => nav("/history")}>
+        <button className="mini home-mini glow" onClick={() => nav("/history")}>
           <History color="#22d3ee" />
           <div>History</div>
         </button>

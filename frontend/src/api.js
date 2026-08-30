@@ -36,6 +36,25 @@ async function request(path, options = {}) {
   return data;
 }
 
+export async function fetchVendorPdfBlob(jobId) {
+  const token = getToken();
+  if (!token) {
+    throw new Error("You must be logged in as a vendor to view this PDF.");
+  }
+
+  const res = await fetch(`/api/vendor/jobs/${jobId}/pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const detail = data.detail || res.statusText || "Unable to load the PDF.";
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+
+  return URL.createObjectURL(await res.blob());
+}
+
 export const api = {
   login: (email, password) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (name, email, password) =>
@@ -55,15 +74,84 @@ export const api = {
   mine: () => request("/api/jobs/mine"),
   job: (id) => request(`/api/jobs/${id}`),
   bookScan: (body) => request("/api/scans", { method: "POST", body: JSON.stringify(body) }),
-  paymentConfig: () => request("/api/payments/config"),
-  createOrder: (jobId, mode) =>
-    request(`/api/payments/create-order?job_id=${jobId}${mode ? `&mode=${encodeURIComponent(mode)}` : ""}`, { method: "POST" }),
+  createOrder: (jobId) => request(`/api/payments/create-order?job_id=${jobId}`, { method: "POST" }),
+  verifyPayment: (body) => request("/api/payments/verify-payment", { method: "POST", body: JSON.stringify(body) }),
   simulatePay: (order_id) => request("/api/payments/simulate", { method: "POST", body: JSON.stringify({ order_id }) }),
-  verifyRazorpay: (body) => request("/api/payments/verify", { method: "POST", body: JSON.stringify(body) }),
   vendorBoard: () => request("/api/vendor/board"),
+  vendorPdf: (id) => `/api/vendor/jobs/${id}/pdf`,
   startJob: (id) => request(`/api/vendor/jobs/${id}/start`, { method: "POST" }),
+  doneJob: (id) => request(`/api/vendor/jobs/${id}/done`, { method: "POST" }),
+  cancelJob: async (id) => {
+    try {
+      return await request(`/api/vendor/jobs/${id}/cancel`, { method: "POST" });
+    } catch (err) {
+      return await request(`/api/vendor/jobs/${id}/remove`, { method: "POST" });
+    }
+  },
   verifyOtp: (id, otp) => request(`/api/vendor/jobs/${id}/otp`, { method: "POST", body: JSON.stringify({ otp }) }),
 };
+
+function loadRazorpayScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Razorpay checkout script failed to load.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Razorpay checkout script failed to load."));
+    document.body.appendChild(script);
+  });
+}
+
+// Opens the real Razorpay Checkout modal for an order created with live keys
+// (order.gateway === "razorpay"). Resolves with the fields /payments/verify-payment
+// expects; rejects if the script isn't available, the user cancels, or payment fails.
+export async function openRazorpayCheckout(order, prefill = {}) {
+  await loadRazorpayScript();
+
+  const key = order?.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || "";
+  if (!key) {
+    throw new Error("Razorpay key is missing. Set VITE_RAZORPAY_KEY_ID in frontend/.env.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const rzp = new window.Razorpay({
+      key,
+      amount: order.amount,
+      currency: order.currency,
+      order_id: order.order_id,
+      name: "KwickInk",
+      description: "Campus print & scan payment",
+      prefill: { name: prefill.name, email: prefill.email },
+      theme: { color: "#22d3ee" },
+      handler: (response) => {
+        resolve({
+          order_id: response.razorpay_order_id,
+          payment_id: response.razorpay_payment_id,
+          signature: response.razorpay_signature,
+        });
+      },
+      modal: {
+        ondismiss: () => reject(new Error("Payment was cancelled.")),
+      },
+    });
+    rzp.on("payment.failed", (resp) => {
+      reject(new Error(resp?.error?.description || "Razorpay payment failed."));
+    });
+    rzp.open();
+  });
+}
 
 export function connectSocket(onMessage) {
   const token = getToken();

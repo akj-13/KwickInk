@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     slot_minutes: int = 15
     bw_rate: float = 2.0
     color_rate: float = 8.0
-    scan_rate: float = 5.0
+    scan_rate: float = 1.0
     offpeak_discount: float = 0.20
     demo_mode: bool = True
     max_upload_bytes: int = 15 * 1024 * 1024

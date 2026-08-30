@@ -3,6 +3,8 @@ from datetime import datetime, time
 from app.config import get_settings
 from app.models import Lane
 
+OFFPEAK_WINDOWS = [(time(9, 30), time(12, 30)), (time(13, 30), time(15, 30))]
+
 
 def parse_hhmm(value: str) -> time:
     h, m = value.split(":")
@@ -11,9 +13,7 @@ def parse_hhmm(value: str) -> time:
 
 def is_offpeak(slot_start: datetime) -> bool:
     t = slot_start.time()
-    if slot_start.weekday() >= 5:
-        return True
-    return t < time(10, 0) or t >= time(16, 0)
+    return any(start <= t < end for start, end in OFFPEAK_WINDOWS)
 
 
 def lane_for_pages(pages: int, copies: int) -> Lane:
