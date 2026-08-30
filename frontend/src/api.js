@@ -56,6 +56,7 @@ export const api = {
   job: (id) => request(`/api/jobs/${id}`),
   bookScan: (body) => request("/api/scans", { method: "POST", body: JSON.stringify(body) }),
   createOrder: (jobId) => request(`/api/payments/create-order?job_id=${jobId}`, { method: "POST" }),
+  verifyPayment: (body) => request("/api/payments/verify-payment", { method: "POST", body: JSON.stringify(body) }),
   simulatePay: (order_id) => request("/api/payments/simulate", { method: "POST", body: JSON.stringify({ order_id }) }),
   vendorBoard: () => request("/api/vendor/board"),
   startJob: (id) => request(`/api/vendor/jobs/${id}/start`, { method: "POST" }),

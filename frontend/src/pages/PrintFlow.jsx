@@ -47,11 +47,43 @@ export default function PrintFlow() {
     setError("");
     try {
       const order = await api.createOrder(job.id);
-      const paid = await api.simulatePay(order.order_id);
-      nav(`/job/${paid.job.id}`);
+      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!keyId || !window.Razorpay) {
+        throw new Error("Razorpay is not configured for this app yet.");
+      }
+
+      const razorpay = new window.Razorpay({
+        key: keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "KwickInk",
+        description: `Payment for job #${job.id}`,
+        order_id: order.order_id,
+        handler: async function (response) {
+          const result = await api.verifyPayment({
+            order_id: response.razorpay_order_id,
+            payment_id: response.razorpay_payment_id,
+            signature: response.razorpay_signature,
+          });
+          nav(`/job/${result.job_id}`);
+        },
+        theme: { color: "#0f172a" },
+        modal: {
+          ondismiss: () => {
+            setError("Payment cancelled. No charge was made.");
+            setBusy(false);
+          },
+        },
+      });
+
+      razorpay.on("payment.failed", function (response) {
+        setError(response.error?.description || "Payment failed. Please try again.");
+        setBusy(false);
+      });
+
+      razorpay.open();
     } catch (err) {
       setError(err.message);
-    } finally {
       setBusy(false);
     }
   }
