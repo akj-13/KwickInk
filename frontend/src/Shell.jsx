@@ -12,7 +12,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { clearSession } from "./api";
 
 export default function Shell({ user, children }) {
@@ -31,6 +31,13 @@ export default function Shell({ user, children }) {
         ["/scheduled", "Scheduled Jobs", CalendarClock],
         ["/history", "History", History],
       ];
+
+  // Request notification permission on app load for students
+  useEffect(() => {
+    if (!vendor && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, [vendor]);
 
   function logout() {
     clearSession();

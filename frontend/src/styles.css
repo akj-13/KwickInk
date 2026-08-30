@@ -257,6 +257,16 @@ h1, h2, .brand { font-family: Orbitron, Inter, sans-serif; letter-spacing: 0.08e
   filter: brightness(1.06);
 }
 
+.tech-card.glow {
+  box-shadow: var(--shadow);
+  border-color: var(--cyan);
+}
+
+.mini.glow {
+  box-shadow: var(--shadow);
+  border-color: var(--cyan);
+}
+
 .drop {
   border: 1.5px dashed rgba(34, 211, 238, 0.45);
   padding: 36px 16px;

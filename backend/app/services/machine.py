@@ -48,6 +48,7 @@ def job_payload(job: PrintJob, include_otp: bool = False, for_vendor: bool = Fal
         "state": job.state.value,
         "lane": job.lane.value if job.lane else None,
         "filename": job.filename,
+        "student_name": job.student.name if job.student else None,
         "page_count": job.page_count,
         "color": job.color,
         "duplex": job.duplex,
@@ -56,15 +57,20 @@ def job_payload(job: PrintJob, include_otp: bool = False, for_vendor: bool = Fal
         "amount": job.amount,
         "original_amount": _original_amount(job),
         "offpeak": job.offpeak,
-        "queue_position": job.queue_position,
+        "queue_position": job.queue_position if job.queue_position else 0,
         "eta_minutes": job.eta_minutes,
         "purged": job.purged,
+        "notes": job.notes,
         "created_at": job.created_at.isoformat(),
         "updated_at": job.updated_at.isoformat() if job.updated_at else None,
         "has_spool": bool(job.stored_path) and not job.purged,
     }
     if for_vendor:
-        data["student_name"] = job.student.name if job.student else None
+        data["student_email"] = job.student.email if job.student else None
+        data["customer_name"] = job.student.name if job.student else None
+        data["customer_email"] = job.student.email if job.student else None
+        if job.stored_path and not job.purged:
+            data["file_url"] = f"/api/vendor/jobs/{job.id}/pdf"
     else:
         data["student_id"] = job.student_id
     if include_otp and not for_vendor:

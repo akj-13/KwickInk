@@ -36,6 +36,25 @@ async function request(path, options = {}) {
   return data;
 }
 
+export async function fetchVendorPdfBlob(jobId) {
+  const token = getToken();
+  if (!token) {
+    throw new Error("You must be logged in as a vendor to view this PDF.");
+  }
+
+  const res = await fetch(`/api/vendor/jobs/${jobId}/pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const detail = data.detail || res.statusText || "Unable to load the PDF.";
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+
+  return URL.createObjectURL(await res.blob());
+}
+
 export const api = {
   login: (email, password) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (name, email, password) =>
@@ -59,7 +78,16 @@ export const api = {
   verifyPayment: (body) => request("/api/payments/verify-payment", { method: "POST", body: JSON.stringify(body) }),
   simulatePay: (order_id) => request("/api/payments/simulate", { method: "POST", body: JSON.stringify({ order_id }) }),
   vendorBoard: () => request("/api/vendor/board"),
+  vendorPdf: (id) => `/api/vendor/jobs/${id}/pdf`,
   startJob: (id) => request(`/api/vendor/jobs/${id}/start`, { method: "POST" }),
+  doneJob: (id) => request(`/api/vendor/jobs/${id}/done`, { method: "POST" }),
+  cancelJob: async (id) => {
+    try {
+      return await request(`/api/vendor/jobs/${id}/cancel`, { method: "POST" });
+    } catch (err) {
+      return await request(`/api/vendor/jobs/${id}/remove`, { method: "POST" });
+    }
+  },
   verifyOtp: (id, otp) => request(`/api/vendor/jobs/${id}/otp`, { method: "POST", body: JSON.stringify({ otp }) }),
 };
 

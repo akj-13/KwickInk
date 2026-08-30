@@ -13,18 +13,18 @@ export default function Home() {
           <h3>PRINT DOCUMENT</h3>
           <p className="muted">Magic-byte PDF validation · live ETA · dual-lane queue</p>
         </button>
-        <button className="tech-card home-action" onClick={() => nav("/scan")} style={{ cursor: "pointer", textAlign: "left" }}>
+        <button className="tech-card glow home-action" onClick={() => nav("/scan")} style={{ cursor: "pointer", textAlign: "left" }}>
           <ScanLine className="action-icon" />
           <h3>SCAN DOCUMENT</h3>
           <p className="muted">Book a scan window. Files land in your cloud history.</p>
         </button>
       </div>
       <div className="mini-row">
-        <button className="mini home-mini" onClick={() => nav("/scheduled")}>
+        <button className="mini home-mini glow" onClick={() => nav("/scheduled")}>
           <CalendarClock color="#22d3ee" />
           <div>Scheduled Jobs</div>
         </button>
-        <button className="mini home-mini" onClick={() => nav("/history")}>
+        <button className="mini home-mini glow" onClick={() => nav("/history")}>
           <History color="#22d3ee" />
           <div>History</div>
         </button>

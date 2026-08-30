@@ -115,6 +115,24 @@ export default function PrintFlow() {
               </div>
             </div>
           </div>
+          <h3>Special Instructions</h3>
+          <textarea
+            placeholder="Add any special instructions for the print staff (e.g., 'Fold along the center', 'Use premium paper')"
+            value={job.notes || ""}
+            onChange={(e) => patch({ notes: e.target.value })}
+            style={{
+              width: "100%",
+              minHeight: 80,
+              padding: 12,
+              background: "#0a0e27",
+              border: "1px solid #22d3ee",
+              borderRadius: 6,
+              color: "white",
+              fontFamily: "inherit",
+              resize: "vertical",
+              marginBottom: 16,
+            }}
+          />
           <h3>Pickup slot</h3>
           <div className="slot-grid">
             {slots.filter((s) => s.available).slice(0, 24).map((s) => (
