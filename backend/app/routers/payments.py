@@ -1,9 +1,8 @@
 import json
 import secrets
 
-import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -15,8 +14,8 @@ from app.services.heap_queue import queue_engine, recompute_positions
 from app.services.machine import IllegalTransition, job_payload, transit
 from app.services.pricing import lane_for_pages
 from app.services.ratelimit import client_ip, limiter
-from app.services.razorpay import verify_signature
 from app.services.realtime import hub
+from app.services import razorpay as rzp
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 settings = get_settings()
@@ -26,10 +25,10 @@ class SimulateIn(BaseModel):
     order_id: str
 
 
-class VerifyPaymentIn(BaseModel):
-    order_id: str = Field(min_length=1)
-    payment_id: str = Field(min_length=1)
-    signature: str = Field(min_length=1)
+class RazorpayVerifyIn(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
 
 
 def _queued_jobs(db: Session) -> list[PrintJob]:
@@ -37,6 +36,8 @@ def _queued_jobs(db: Session) -> list[PrintJob]:
 
 
 async def place_in_queue(db: Session, job: PrintJob) -> None:
+    if job.state == JobState.QUEUED:
+        return
     if job.state != JobState.SLOT_RESERVED:
         raise HTTPException(400, "Job is not awaiting payment capture")
     otp = generate_otp()
@@ -56,8 +57,31 @@ async def place_in_queue(db: Session, job: PrintJob) -> None:
     await hub.push_vendors({"type": "queue", "job": job_payload(job, for_vendor=True)})
 
 
+def _reserve_slot(db: Session, job: PrintJob) -> None:
+    if job.state == JobState.UNPAID:
+        try:
+            transit(db, job, JobState.SLOT_RESERVED, "slot held pending HMAC payment")
+        except IllegalTransition as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/config")
+def payment_config():
+    return {
+        "demo_mode": settings.demo_mode,
+        "razorpay": rzp.razorpay_enabled(),
+        "key_id": settings.razorpay_key_id if rzp.razorpay_enabled() else None,
+        "currency": "INR",
+    }
+
+
 @router.post("/create-order")
-def create_order(job_id: int, user: User = Depends(require_student), db: Session = Depends(get_db)):
+def create_order(
+    job_id: int,
+    mode: str = "auto",
+    user: User = Depends(require_student),
+    db: Session = Depends(get_db),
+):
     job = db.get(PrintJob, job_id)
     if not job or job.student_id != user.id:
         raise HTTPException(404, "Job not found")
@@ -66,82 +90,64 @@ def create_order(job_id: int, user: User = Depends(require_student), db: Session
     if not job.slot_start:
         raise HTTPException(400, "Select a pickup slot first")
 
-    amount_paise = max(100, int(round(float(job.amount) * 100)))
-    if amount_paise < 100:
-        raise HTTPException(400, "Minimum payment amount is ₹1.00")
+    want_razorpay = mode == "razorpay" or (mode == "auto" and rzp.razorpay_enabled() and not settings.demo_mode)
+    if mode == "demo":
+        want_razorpay = False
+    if want_razorpay and not rzp.razorpay_enabled():
+        raise HTTPException(400, "Razorpay keys are not configured")
 
-    if settings.razorpay_key_id and settings.razorpay_key_secret:
-        payload = {"amount": amount_paise, "currency": "INR", "receipt": f"job_{job.id}_{secrets.token_hex(4)}"}
+    if want_razorpay:
         try:
-            response = httpx.post(
-                "https://api.razorpay.com/v1/orders",
-                auth=(settings.razorpay_key_id, settings.razorpay_key_secret),
-                json=payload,
-                timeout=15.0,
+            created = rzp.create_order(
+                job.amount,
+                receipt=f"job_{job.id}_{job.public_id}",
+                notes={"job_id": str(job.id), "public_id": job.public_id},
             )
-        except httpx.HTTPError as exc:
-            raise HTTPException(500, "Razorpay order creation failed") from exc
-
-        if response.status_code == 401:
-            raise HTTPException(401, "Razorpay authentication failed")
-        if response.status_code >= 400:
-            raise HTTPException(500, f"Razorpay order creation failed: {response.text[:200]}")
-
-        data = response.json()
-        order_id = data.get("id") or data.get("order_id")
-        if not order_id:
-            raise HTTPException(500, "Razorpay order response missing order_id")
-        amount = int(data.get("amount", amount_paise))
-        currency = data.get("currency", "INR")
+        except rzp.RazorpayError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        order_id = created["id"]
+        gateway = "razorpay"
+        key_id = settings.razorpay_key_id
+        amount_paise = created.get("amount") or rzp.paise(job.amount)
     else:
-        order_id = job.payment_order_id or f"order_{secrets.token_hex(8)}"
-        amount = amount_paise
-        currency = "INR"
+        order_id = f"demo_{secrets.token_hex(8)}"
+        gateway = "demo"
+        key_id = None
+        amount_paise = rzp.paise(job.amount)
 
     job.payment_order_id = order_id
     existing = db.query(PaymentLedger).filter(PaymentLedger.order_id == order_id).first()
     if not existing:
         db.add(PaymentLedger(job_id=job.id, order_id=order_id, amount=job.amount, status="created"))
-    if job.state == JobState.UNPAID:
-        try:
-            transit(db, job, JobState.SLOT_RESERVED, "slot held pending Razorpay payment")
-        except IllegalTransition as exc:
-            raise HTTPException(400, str(exc)) from exc
+    _reserve_slot(db, job)
     db.commit()
     return {
         "order_id": order_id,
-        "amount": amount,
-        "currency": currency,
-        "key_id": settings.razorpay_key_id or "kwick_demo_key",
-        "gateway": "razorpay" if settings.razorpay_key_id else "kwickpay_hmac",
+        "amount": job.amount,
+        "amount_paise": amount_paise,
+        "currency": "INR",
+        "key_id": key_id,
+        "gateway": gateway,
+        "demo_mode": settings.demo_mode,
     }
 
 
-@router.post("/verify-payment")
-async def verify_payment(body: VerifyPaymentIn, user: User = Depends(require_student), db: Session = Depends(get_db)):
-    if not body.order_id or not body.payment_id or not body.signature:
-        raise HTTPException(400, "Missing Razorpay payment fields")
-    if not settings.razorpay_key_secret:
-        raise HTTPException(401, "Razorpay secret is not configured")
-
-    payload = f"{body.order_id}|{body.payment_id}"
-    if not verify_signature(settings.razorpay_key_secret, payload, body.signature):
-        raise HTTPException(400, "Payment signature verification failed")
-
-    job = db.query(PrintJob).filter(PrintJob.payment_order_id == body.order_id, PrintJob.student_id == user.id).first()
+@router.post("/verify")
+async def verify_razorpay(body: RazorpayVerifyIn, user: User = Depends(require_student), db: Session = Depends(get_db)):
+    if not rzp.razorpay_enabled():
+        raise HTTPException(400, "Razorpay is not configured")
+    if not rzp.verify_checkout(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature):
+        raise HTTPException(401, "HMAC-SHA256 checkout signature failed")
+    job = db.query(PrintJob).filter(PrintJob.payment_order_id == body.razorpay_order_id, PrintJob.student_id == user.id).first()
     if not job:
         raise HTTPException(404, "Order not found")
-
-    ledger = db.query(PaymentLedger).filter(PaymentLedger.order_id == body.order_id).first()
+    ledger = db.query(PaymentLedger).filter(PaymentLedger.order_id == body.razorpay_order_id).first()
     if ledger:
         ledger.status = "captured"
-        ledger.signature = body.signature
-
-    if job.state == JobState.QUEUED:
-        return {"ok": True, "job_id": job.id, "status": "paid", "duplicate": True}
-    if job.state in (JobState.UNPAID, JobState.SLOT_RESERVED):
-        await place_in_queue(db, job)
-    return {"ok": True, "job_id": job.id, "status": "paid"}
+        ledger.signature = body.razorpay_signature
+    await place_in_queue(db, job)
+    job = db.get(PrintJob, job.id)
+    return {"ok": True, "job": job_payload(job, include_otp=True)}
 
 
 @router.post("/webhook")
@@ -156,8 +162,8 @@ async def webhook(
     if len(body) > 64_000:
         raise HTTPException(413, "Webhook payload too large")
     signature = x_kwick_signature or x_razorpay_signature or ""
-    secret = settings.razorpay_key_secret or settings.payment_webhook_secret
-    if not verify_hmac(secret, body, signature):
+    secret = rzp.webhook_secret()
+    if not secret or not verify_hmac(secret, body, signature):
         raise HTTPException(401, "HMAC-SHA256 verification failed")
     try:
         payload = json.loads(body.decode())
@@ -182,13 +188,13 @@ async def webhook(
 @router.post("/simulate")
 async def simulate(body: SimulateIn, request: Request, user: User = Depends(require_student), db: Session = Depends(get_db)):
     if not settings.demo_mode:
-        raise HTTPException(403, "Demo capture is disabled. Use a signed payment webhook.")
+        raise HTTPException(403, "Demo capture is disabled. Use Razorpay checkout.")
     limiter.check(f"pay:{user.id}:{client_ip(request)}", 20, 60)
     job = db.query(PrintJob).filter(PrintJob.payment_order_id == body.order_id, PrintJob.student_id == user.id).first()
     if not job:
         raise HTTPException(404, "Order not found")
     payload = json.dumps({"order_id": body.order_id, "status": "captured", "amount": job.amount}, separators=(",", ":")).encode()
-    secret = settings.razorpay_key_secret or settings.payment_webhook_secret
+    secret = settings.payment_webhook_secret
     sig = hmac_sha256(secret, payload)
     if not verify_hmac(secret, payload, sig):
         raise HTTPException(401, "HMAC-SHA256 verification failed")

@@ -1,16 +1,52 @@
-import hashlib
-import hmac
+import httpx
+
+from app.config import get_settings
+from app.services.crypto import hmac_sha256, verify_hmac
 
 
-def build_signature(secret: str, order_id: str, payment_id: str) -> str:
-    payload = f"{order_id}|{payment_id}"
-    return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+class RazorpayError(RuntimeError):
+    pass
 
 
-def verify_signature(secret: str, payload: str, signature: str) -> bool:
-    if "|" not in payload:
-        return False
-    order_id, payment_id = payload.split("|", 1)
-    expected = build_signature(secret, order_id, payment_id)
-    provided = (signature or "").strip().lower()
-    return hmac.compare_digest(expected, provided)
+def paise(amount_inr: float) -> int:
+    return max(100, int(round(float(amount_inr) * 100)))
+
+
+def razorpay_enabled() -> bool:
+    settings = get_settings()
+    return bool(settings.razorpay_key_id and settings.razorpay_key_secret)
+
+
+def create_order(amount_inr: float, receipt: str, notes: dict) -> dict:
+    settings = get_settings()
+    payload = {
+        "amount": paise(amount_inr),
+        "currency": "INR",
+        "receipt": receipt[:40],
+        "notes": notes,
+        "payment_capture": 1,
+    }
+    try:
+        response = httpx.post(
+            "https://api.razorpay.com/v1/orders",
+            auth=(settings.razorpay_key_id, settings.razorpay_key_secret),
+            json=payload,
+            timeout=20.0,
+        )
+    except httpx.HTTPError as exc:
+        raise RazorpayError("Could not reach Razorpay") from exc
+    if response.status_code >= 400:
+        raise RazorpayError(response.text[:300] or "Razorpay order failed")
+    return response.json()
+
+
+def verify_checkout(order_id: str, payment_id: str, signature: str) -> bool:
+    settings = get_settings()
+    message = f"{order_id}|{payment_id}".encode()
+    expected = hmac_sha256(settings.razorpay_key_secret, message)
+    return verify_hmac(settings.razorpay_key_secret, message, signature) or expected == (signature or "").lower()
+
+
+def webhook_secret() -> str:
+    settings = get_settings()
+    return settings.payment_webhook_secret or settings.razorpay_key_secret

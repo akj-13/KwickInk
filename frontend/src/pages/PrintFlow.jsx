@@ -1,7 +1,8 @@
-import { CloudUpload, Lock } from "lucide-react";
+import { CloudUpload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, getUser, openRazorpayCheckout } from "../api";
+import { api } from "../api";
+import PayActions from "../PayActions.jsx";
 
 export default function PrintFlow() {
   const { id } = useParams();
@@ -42,26 +43,6 @@ export default function PrintFlow() {
     setJob(next);
   }
 
-  async function pay() {
-    setBusy(true);
-    setError("");
-    try {
-      const order = await api.createOrder(job.id);
-      if (order.gateway === "razorpay") {
-        const user = getUser();
-        const result = await openRazorpayCheckout(order, { name: user?.name, email: user?.email });
-        await api.verifyPayment(result);
-      } else {
-        await api.simulatePay(order.order_id);
-      }
-      nav(`/job/${job.id}`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div>
       <h2>UPLOAD</h2>
@@ -82,16 +63,10 @@ export default function PrintFlow() {
         <>
           <div className="tech-card" style={{ marginBottom: 16 }}>
             <strong>{job.filename}</strong>
-            <p className="muted" style={{ marginBottom: 0 }}>
-              {job.page_count} pages · {job.lane || "lane pending"}
-              {job.offpeak ? " · 20% off-peak applied" : ""}
+            <p className="muted">
+              {job.page_count} pages · {job.lane || "lane pending"} · ₹{job.amount.toFixed(2)}
+              {job.offpeak ? " · 20% off-peak" : ""}
             </p>
-            <div className="price-display">
-              {job.offpeak && job.original_amount > job.amount && (
-                <span className="original">₹{job.original_amount.toFixed(2)}</span>
-              )}
-              <span>₹{job.amount.toFixed(2)}</span>
-            </div>
           </div>
           <div className="toggles card" style={{ marginBottom: 16 }}>
             <div className="toggle">
@@ -115,24 +90,6 @@ export default function PrintFlow() {
               </div>
             </div>
           </div>
-          <h3>Special Instructions</h3>
-          <textarea
-            placeholder="Add any special instructions for the print staff (e.g., 'Fold along the center', 'Use premium paper')"
-            value={job.notes || ""}
-            onChange={(e) => patch({ notes: e.target.value })}
-            style={{
-              width: "100%",
-              minHeight: 80,
-              padding: 12,
-              background: "#0a0e27",
-              border: "1px solid #22d3ee",
-              borderRadius: 6,
-              color: "white",
-              fontFamily: "inherit",
-              resize: "vertical",
-              marginBottom: 16,
-            }}
-          />
           <h3>Pickup slot</h3>
           <div className="slot-grid">
             {slots.filter((s) => s.available).slice(0, 24).map((s) => (
@@ -145,9 +102,15 @@ export default function PrintFlow() {
               </button>
             ))}
           </div>
-          <button className="btn-solid" style={{ width: "100%" }} disabled={busy || !job.slot_start} onClick={pay}>
-            {busy ? "Verifying HMAC…" : "CALCULATE & CONFIRM"}
-          </button>
+          <PayActions
+            jobId={job.id}
+            amount={job.amount}
+            disabled={!job.slot_start}
+            busy={busy}
+            setBusy={setBusy}
+            onError={setError}
+            onPaid={(paid) => nav(`/job/${paid.id}`)}
+          />
         </>
       )}
       {error && <p className="error">{error}</p>}

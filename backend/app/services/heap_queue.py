@@ -107,5 +107,5 @@ def recompute_positions(jobs: list[PrintJob]) -> None:
         job.eta_minutes = eta_minutes(pending)
     for job in jobs:
         if job.state == JobState.PRINTING:
-            job.queue_position = None
+            job.queue_position = 0
             job.eta_minutes = eta_minutes(job.page_count * max(1, job.copies))

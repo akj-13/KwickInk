@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from app.config import get_settings
 from app.models import PrintJob
-from app.services.pricing import is_offpeak, parse_hhmm
+from app.services.pricing import parse_hhmm
 
 
 def generate_slots(day: datetime, reserved: list[datetime]) -> list[dict]:
@@ -30,7 +30,7 @@ def generate_slots(day: datetime, reserved: list[datetime]) -> list[dict]:
                 "capacity": cap,
                 "used": used,
                 "available": used < cap and cur > now - timedelta(minutes=1),
-                "offpeak": is_offpeak(cur),
+                "offpeak": cur.time().hour < 10 or cur.time().hour >= 16 or cur.weekday() >= 5,
             }
         )
         cur += timedelta(minutes=settings.slot_minutes)

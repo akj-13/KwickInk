@@ -17,24 +17,7 @@ export default function App() {
 
   useEffect(() => {
     if (!token) return;
-    const ws = connectSocket((msg) => {
-      // Show notification when job is ready for pickup
-      if (msg.type === "job" && msg.job) {
-        console.log("📨 Job update received:", msg.job);
-        if (msg.job.state === "OTP_VERIFIED" && "Notification" in window) {
-          if (Notification.permission === "granted") {
-            const label = msg.job.kind === "scan" ? "Scan ready" : "Print ready";
-            const personFile = msg.job.student_name ? `${msg.job.student_name}'s ${msg.job.filename}` : msg.job.filename;
-            new Notification(label, {
-              body: `${personFile} is ready for pickup. Please visit the counter.`,
-            });
-            console.log("🔔 Notification sent");
-          } else {
-            console.log("ℹ️ Notification permission not granted:", Notification.permission);
-          }
-        }
-      }
-    });
+    const ws = connectSocket(() => {});
     return () => ws?.close();
   }, [token]);
 
