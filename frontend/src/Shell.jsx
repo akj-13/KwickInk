@@ -28,7 +28,7 @@ export default function Shell({ user, children }) {
         ["/home", "Home", Home],
         ["/print", "Print", Printer],
         ["/scan", "Scan", ScanLine],
-        ["/scheduled", "Scheduled Jobs", CalendarClock],
+        ["/scheduled", "Print Queue", CalendarClock],
         ["/history", "History", History],
       ];
 
@@ -40,6 +40,8 @@ export default function Shell({ user, children }) {
   }, [vendor]);
 
   function logout() {
+    const confirmed = window.confirm("Are you sure you want to sign out?");
+    if (!confirmed) return;
     clearSession();
     nav("/");
   }
@@ -63,7 +65,7 @@ export default function Shell({ user, children }) {
           </div>
           <strong className="brand">KWICKINK</strong>
           {open && (
-            <button className="btn-outline" style={{ marginLeft: "auto", padding: "6px 10px" }} onClick={() => setOpen(false)}>
+            <button className="btn-outline side-close" onClick={() => setOpen(false)}>
               <X size={16} />
             </button>
           )}
@@ -73,11 +75,11 @@ export default function Shell({ user, children }) {
             <Icon size={18} /> {label}
           </NavLink>
         ))}
-        <div style={{ marginTop: "auto" }}>
-          <div className="nav-link">
+        <div className="sidebar-footer">
+          <div className="nav-link user-pill">
             <UserRound size={18} /> {user?.name}
           </div>
-          <button className="nav-link" onClick={logout} style={{ width: "100%", background: "none", border: 0, cursor: "pointer" }}>
+          <button type="button" className="nav-link nav-signout" onClick={logout} aria-label="Sign out">
             <LogOut size={18} /> Sign out
           </button>
         </div>

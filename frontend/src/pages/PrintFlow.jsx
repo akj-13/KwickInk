@@ -1,5 +1,5 @@
 import { CloudUpload, Lock } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, getUser, openRazorpayCheckout } from "../api";
 
@@ -11,11 +11,27 @@ export default function PrintFlow() {
   const [error, setError] = useState("");
   const [slots, setSlots] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const patchSerial = useRef(0);
 
   useEffect(() => {
-    if (id) api.job(id).then(setJob).catch((e) => setError(e.message));
+    if (id) {
+      api
+        .job(id)
+        .then((nextJob) => {
+          setJob(nextJob);
+          setNotesDraft(nextJob?.notes || "");
+        })
+        .catch((e) => setError(e.message));
+    }
     api.slots().then(setSlots).catch(() => {});
   }, [id]);
+
+  useEffect(() => {
+    if (job) {
+      setNotesDraft(job.notes || "");
+    }
+  }, [job?.id, job?.notes]);
 
   async function onFile(file) {
     if (!file) return;
@@ -33,8 +49,27 @@ export default function PrintFlow() {
   }
 
   async function patch(partial) {
-    const next = await api.settings(job.id, partial);
-    setJob(next);
+    if (!job?.id) return;
+
+    const serial = ++patchSerial.current;
+    setJob((current) => (current ? { ...current, ...partial } : current));
+
+    try {
+      const next = await api.settings(job.id, partial);
+      if (serial === patchSerial.current) {
+        setJob(next);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveNotes() {
+    if (!job?.id) return;
+    const trimmed = notesDraft.trim();
+    const nextValue = trimmed || null;
+    if ((job.notes || null) === nextValue) return;
+    await patch({ notes: nextValue });
   }
 
   async function pickSlot(slot) {
@@ -94,40 +129,57 @@ export default function PrintFlow() {
             </div>
           </div>
           <div className="toggles card" style={{ marginBottom: 16 }}>
-            <div className="toggle">
-              Single side / Double side
-              <button className={`switch ${job.duplex ? "on" : ""}`} onClick={() => patch({ duplex: !job.duplex })}>
-                <i />
-              </button>
+            <div className="toggle option-row">
+              <span>Single side / Double side</span>
+              <div className="segmented" aria-label="Paper orientation">
+                <button type="button" className={`segmented-btn ${!job.duplex ? "active" : ""}`} onClick={() => patch({ duplex: false })}>
+                  Single
+                </button>
+                <button type="button" className={`segmented-btn ${job.duplex ? "active" : ""}`} onClick={() => patch({ duplex: true })}>
+                  Double
+                </button>
+              </div>
             </div>
-            <div className="toggle">
-              Color / Black & White
-              <button className={`switch ${job.color ? "on" : ""}`} onClick={() => patch({ color: !job.color })}>
-                <i />
-              </button>
+            <div className="toggle option-row">
+              <span>Color / Black & White</span>
+              <div className="segmented" aria-label="Print color mode">
+                <button type="button" className={`segmented-btn ${!job.color ? "active" : ""}`} onClick={() => patch({ color: false })}>
+                  B&amp;W
+                </button>
+                <button type="button" className={`segmented-btn ${job.color ? "active" : ""}`} onClick={() => patch({ color: true })}>
+                  Color
+                </button>
+              </div>
             </div>
-            <div className="toggle">
-              Copies: {job.copies}
+            <div className="toggle option-row">
+              <span>Copies: {job.copies}</span>
               <div className="stepper">
-                <button onClick={() => patch({ copies: Math.max(1, job.copies - 1) })}>-</button>
+                <button type="button" onClick={() => patch({ copies: Math.max(1, job.copies - 1) })}>-</button>
                 <span>{job.copies}</span>
-                <button onClick={() => patch({ copies: job.copies + 1 })}>+</button>
+                <button type="button" onClick={() => patch({ copies: job.copies + 1 })}>+</button>
               </div>
             </div>
           </div>
           <h3>Special Instructions</h3>
           <textarea
             placeholder="Add any special instructions for the print staff (e.g., 'Fold along the center', 'Use premium paper')"
-            value={job.notes || ""}
-            onChange={(e) => patch({ notes: e.target.value })}
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            onBlur={saveNotes}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                saveNotes();
+              }
+            }}
             style={{
               width: "100%",
               minHeight: 80,
               padding: 12,
-              background: "#0a0e27",
-              border: "1px solid #22d3ee",
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
               borderRadius: 6,
-              color: "white",
+              color: "var(--text)",
               fontFamily: "inherit",
               resize: "vertical",
               marginBottom: 16,

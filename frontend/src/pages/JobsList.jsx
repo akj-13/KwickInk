@@ -22,7 +22,7 @@ export default function JobsList({ filter }) {
 
   return (
     <div>
-      <h2>{filter === "history" ? "HISTORY" : "SCHEDULED JOBS"}</h2>
+      <h2>{filter === "history" ? "HISTORY" : "PRINT QUEUE"}</h2>
       <table className="table">
         <thead>
           <tr>

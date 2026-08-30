@@ -22,7 +22,7 @@ export default function Home() {
       <div className="mini-row">
         <button className="mini home-mini glow" onClick={() => nav("/scheduled")}>
           <CalendarClock color="#22d3ee" />
-          <div>Scheduled Jobs</div>
+          <div>Print Queue</div>
         </button>
         <button className="mini home-mini glow" onClick={() => nav("/history")}>
           <History color="#22d3ee" />

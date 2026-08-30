@@ -268,7 +268,6 @@ export default function VendorBoard() {
     <div>
       <div className="no-print">
         <h2>VENDOR COMMAND CENTER</h2>
-        <p className="muted">Kanban dispatch · magenta = color · cyan = B&W · OTP handshake then atomic purge.</p>
         {error && <p className="error">{error}</p>}
         <div className="kanban">
           {cols.map(([key, label]) => (
@@ -338,7 +337,7 @@ export default function VendorBoard() {
                         placeholder="OTP"
                         value={otp[job.id] || ""}
                         onChange={(e) => setOtp((o) => ({ ...o, [job.id]: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
-                        style={{ width: "100%", marginBottom: 6, background: "#0b1528", color: "white", border: "1px solid #22d3ee", padding: 8 }}
+                        style={{ width: "100%", marginBottom: 6, background: "var(--panel)", color: "var(--text)", border: "1px solid var(--line)", padding: 8 }}
                       />
                       <button className="btn-outline" style={{ width: "100%" }} onClick={() => verify(job.id)}>
                         VERIFY CODE

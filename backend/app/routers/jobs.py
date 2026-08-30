@@ -25,6 +25,7 @@ class SettingsIn(BaseModel):
     color: bool | None = None
     duplex: bool | None = None
     copies: int | None = Field(default=None, ge=1, le=50)
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class SlotIn(BaseModel):
@@ -107,6 +108,9 @@ def update_settings(job_id: int, body: SettingsIn, user: User = Depends(require_
         job.duplex = body.duplex
     if body.copies is not None:
         job.copies = body.copies
+    if body.notes is not None:
+        clean_notes = body.notes.strip()
+        job.notes = clean_notes or None
     _reprice(job)
     db.commit()
     db.refresh(job)

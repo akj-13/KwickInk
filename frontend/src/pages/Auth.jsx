@@ -26,9 +26,9 @@ export default function Auth({ mode, onAuth }) {
   }
 
   return (
-    <div className="hero">
-      <form className="hero-inner card" onSubmit={submit}>
-        <div className="logo-row" style={{ justifyContent: "center" }}>
+    <div className="auth-shell">
+      <form className="auth-card" onSubmit={submit}>
+        <div className="auth-brand-row">
           <div className="brand-mark">
             <img
               className="brand-logo"
@@ -44,26 +44,31 @@ export default function Auth({ mode, onAuth }) {
           </div>
           <h1>KWICKINK</h1>
         </div>
-        <p className="muted">Zero-trust campus printing · {mode === "signup" ? "Create student ID" : "Secure login"}</p>
+
+        <p className="auth-subtitle">Zero-trust campus printing · {mode === "signup" ? "Create student ID" : "Secure login"}</p>
+
         {mode === "signup" && (
           <label className="field">
-            Name
+            <span>Name</span>
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
         )}
+
         <label className="field">
-          Campus email
+          <span>Campus email</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
         </label>
+
         <label className="field">
-          Password
+          <span>Password</span>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} />
         </label>
+
         {mode === "login" && (
-          <div className="pill-row">
+          <div className="auth-demo-row">
             <button
               type="button"
-              className="btn-outline"
+              className="auth-demo-btn"
               onClick={() => {
                 setEmail("student@campus.edu");
                 setPassword("student123");
@@ -73,7 +78,7 @@ export default function Auth({ mode, onAuth }) {
             </button>
             <button
               type="button"
-              className="btn-outline"
+              className="auth-demo-btn"
               onClick={() => {
                 setEmail("vendor@kwickink.campus");
                 setPassword("vendor123");
@@ -83,11 +88,14 @@ export default function Auth({ mode, onAuth }) {
             </button>
           </div>
         )}
+
         {error && <p className="error">{error}</p>}
-        <button className="btn-solid" style={{ width: "100%", marginTop: 16 }} type="submit">
+
+        <button className="auth-submit" type="submit">
           {mode === "signup" ? "Create account" : "Enter"}
         </button>
-        <p className="muted" style={{ marginTop: 16 }}>
+
+        <p className="auth-meta">
           {mode === "signup" ? (
             <>Already enrolled? <Link to="/login">Login</Link></>
           ) : (
