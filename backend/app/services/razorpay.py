@@ -8,8 +8,16 @@ class RazorpayError(RuntimeError):
     pass
 
 
+def validate_order_amount(amount_inr: float | int) -> int:
+    amount = float(amount_inr)
+    paise_amount = int(round(amount * 100))
+    if paise_amount < 100:
+        raise ValueError("Amount must be at least 100 paise")
+    return paise_amount
+
+
 def paise(amount_inr: float) -> int:
-    return max(100, int(round(float(amount_inr) * 100)))
+    return validate_order_amount(amount_inr)
 
 
 def razorpay_enabled() -> bool:

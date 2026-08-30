@@ -18,14 +18,15 @@ export async function demoPay(jobId) {
 
 export async function razorpayPay(jobId) {
   const order = await api.createOrder(jobId, "razorpay");
-  if (order.gateway !== "razorpay" || !order.key_id) {
-    throw new Error("Razorpay keys are not set. Use Demo pay, or add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.");
+  const keyId = order.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID;
+  if (order.gateway !== "razorpay" || !keyId) {
+    throw new Error("Razorpay keys are not set. Use Demo pay, or configure VITE_RAZORPAY_KEY_ID / backend.env keys.");
   }
   const Razorpay = await loadCheckout();
   const user = getUser();
   return new Promise((resolve, reject) => {
     const checkout = new Razorpay({
-      key: order.key_id,
+      key: keyId,
       amount: order.amount_paise,
       currency: order.currency || "INR",
       name: "KwickInk",

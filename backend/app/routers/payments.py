@@ -103,6 +103,8 @@ def create_order(
                 receipt=f"job_{job.id}_{job.public_id}",
                 notes={"job_id": str(job.id), "public_id": job.public_id},
             )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
         except rzp.RazorpayError as exc:
             raise HTTPException(502, str(exc)) from exc
         order_id = created["id"]
