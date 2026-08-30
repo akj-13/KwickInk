@@ -4,16 +4,6 @@ Frictionless, zero-trust campus printing: dual-lane min-heap queues, pickup time
 
 ## Stack (matches the pitch deck)
 
-| Layer | Tech |
-| --- | --- |
-| Student + vendor UI | Modular React SPA (Vite), hooks for slots / price / ETA |
-| API | FastAPI, strict CORS, WebSockets |
-| PDF guard | Magic-byte check + `pdfplumber` (`pypdf` fallback) |
-| Payments | HMAC-SHA256 webhook verification (Razorpay-compatible headers) |
-| Queue | Express lane `< 5` pages (min-heap), Standard otherwise |
-| State machine | `UNPAID → SLOT_RESERVED → QUEUED → PRINTING → OTP_VERIFIED → COMPLETED` |
-
-## Demo in 5 minutes (judges)
 
 1. **Python 3.11+** and **Node.js 18+**
 2. Backend:
@@ -43,22 +33,11 @@ npm run dev
 | A — student | **Demo student** on the login screen | Print → upload `fixtures/lab-report.pdf` → slot → **Calculate & Confirm** → copy the 4-digit OTP |
 | B — shop | **Demo shop** | Command Center → **Start** the job → enter OTP → file is purged |
 
-Demo accounts (local seed only): `student@campus.edu` / `student123` and `vendor@kwickink.campus` / `vendor123`.
 
-Or run `.\start-dev.ps1` from the repo root after installing dependencies once.
 
-## Push to GitHub
 
-This tree is meant to be committed. Do **not** commit `.env`, `*.db`, `uploads/`, `.venv/`, or `node_modules/` (they are gitignored).
 
-```powershell
-git init
-git add .
-git commit -m "Initial KwickInk campus printing platform"
-gh repo create KwickInk --private --source=. --remote=origin --push
-```
 
-Use `--public` if your hackathon requires a public URL.
 
 ## Security (zero-trust path)
 
@@ -71,7 +50,7 @@ Use `--public` if your hackathon requires a public URL.
 - Login/register/upload rate limits; security headers; CORS allow-list; JWT HS256
 - Vendor accounts cannot be self-registered
 
-Before a **public** demo, set a long random `SECRET_KEY` and `PAYMENT_WEBHOOK_SECRET` in `backend/.env`, and consider `DEMO_MODE=false` plus real Razorpay keys.
+
 
 ## Scale
 
