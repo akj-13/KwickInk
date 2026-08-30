@@ -10,6 +10,9 @@
   --line: rgba(15, 23, 42, 0.12);
   --green: #16a34a;
   --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --scrollbar-track: rgba(148, 163, 184, 0.14);
+  --scrollbar-thumb: rgba(15, 23, 42, 0.35);
+  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.55);
   font-family: "Manrope", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -27,13 +30,49 @@
   --line: rgba(148, 163, 184, 0.22);
   --green: #4ade80;
   --shadow: 0 0 24px rgba(34, 211, 238, 0.28);
+  --scrollbar-track: rgba(148, 163, 184, 0.08);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.42);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.72);
 }
 
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; margin: 0; }
 html {
   color-scheme: light;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
   transition: color-scheme 0.25s ease;
+}
+:root[data-theme="dark"] html {
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 :root[data-theme="dark"] html {
   color-scheme: dark;
