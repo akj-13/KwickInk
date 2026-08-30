@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarClock,
   History,
@@ -18,6 +18,7 @@ import { clearSession } from "./api";
 export default function Shell({ user, children }) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
+  const location = useLocation();
   const vendor = user?.role === "vendor";
   const links = vendor
     ? [
@@ -40,7 +41,19 @@ export default function Shell({ user, children }) {
     <div className="app-shell">
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="logo-row">
-          <div className="logo-mark" />
+          <div className="brand-mark">
+            <img
+              className="brand-logo"
+              src="/logo.svg"
+              alt="KwickInk logo"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+                const fallback = e.currentTarget.parentElement?.querySelector(".logo-mark");
+                if (fallback) fallback.style.display = "block";
+              }}
+            />
+            <div className="logo-mark" style={{ display: "none" }} />
+          </div>
           <strong className="brand">KWICKINK</strong>
           {open && (
             <button className="btn-outline" style={{ marginLeft: "auto", padding: "6px 10px" }} onClick={() => setOpen(false)}>
@@ -70,7 +83,9 @@ export default function Shell({ user, children }) {
           <strong className="brand">KWICKINK</strong>
           <UserRound size={20} />
         </div>
-        {children}
+        <div key={location.pathname} className="page-fade">
+          {children}
+        </div>
       </section>
     </div>
   );

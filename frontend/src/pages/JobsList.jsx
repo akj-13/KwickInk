@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, connectSocket } from "../api";
 
 export default function JobsList({ filter }) {
   const [jobs, setJobs] = useState([]);
@@ -8,7 +8,11 @@ export default function JobsList({ filter }) {
 
   useEffect(() => {
     api.mine().then(setJobs).catch(() => {});
-  }, []);
+    const ws = connectSocket(() => {
+      api.mine().then(setJobs).catch(() => {});
+    });
+    return () => ws?.close();
+  }, [filter]);
 
   const scheduledStates = ["UNPAID", "SLOT_RESERVED", "QUEUED", "PRINTING", "OTP_VERIFIED"];
   const rows =

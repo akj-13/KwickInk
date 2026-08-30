@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, getUser, openRazorpayCheckout } from "../api";
 
 export default function ScanFlow() {
   const nav = useNavigate();
@@ -20,46 +20,25 @@ export default function ScanFlow() {
     try {
       const job = await api.bookScan({ pages, slot_start: slot.start, notes: "counter scan" });
       const order = await api.createOrder(job.id);
-      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
-      if (!keyId || !window.Razorpay) {
-        throw new Error("Razorpay is not configured for this app yet.");
+      if (order.gateway === "razorpay") {
+        const user = getUser();
+        const result = await openRazorpayCheckout(order, { name: user?.name, email: user?.email });
+        await api.verifyPayment(result);
+      } else {
+        await api.simulatePay(order.order_id);
       }
-
-      const razorpay = new window.Razorpay({
-        key: keyId,
-        amount: order.amount,
-        currency: order.currency,
-        name: "KwickInk",
-        description: `Payment for scan #${job.id}`,
-        order_id: order.order_id,
-        handler: async function (response) {
-          const result = await api.verifyPayment({
-            order_id: response.razorpay_order_id,
-            payment_id: response.razorpay_payment_id,
-            signature: response.razorpay_signature,
-          });
-          nav(`/job/${result.job_id}`);
-        },
-        theme: { color: "#0f172a" },
-        modal: {
-          ondismiss: () => {
-            setError("Payment cancelled. No charge was made.");
-            setBusy(false);
-          },
-        },
-      });
-
-      razorpay.on("payment.failed", function (response) {
-        setError(response.error?.description || "Payment failed. Please try again.");
-        setBusy(false);
-      });
-
-      razorpay.open();
+      nav(`/job/${job.id}`);
     } catch (err) {
       setError(err.message);
+    } finally {
       setBusy(false);
     }
   }
+
+  const rate = 1; // ₹1 per page, flat
+  const base = Math.max(1, pages) * rate;
+  const offpeakSelected = !!slot?.offpeak;
+  const total = offpeakSelected ? +(base * 0.8).toFixed(2) : base;
 
   return (
     <div>
@@ -75,6 +54,13 @@ export default function ScanFlow() {
           </div>
         </div>
       </div>
+      <div className="price-display">
+        {offpeakSelected && <span className="original">₹{base.toFixed(2)}</span>}
+        <span>₹{total.toFixed(2)}</span>
+      </div>
+      <p className="muted" style={{ marginTop: -6, marginBottom: 16 }}>
+        ₹1 per page{offpeakSelected ? " · 20% off-peak applied" : ""}
+      </p>
       <div className="slot-grid">
         {slots.filter((s) => s.available).slice(0, 24).map((s) => (
           <button key={s.start} className={`slot ${slot?.start === s.start ? "on" : ""}`} onClick={() => setSlot(s)}>

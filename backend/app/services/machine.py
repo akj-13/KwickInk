@@ -2,8 +2,9 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models import JobEvent, JobState, PrintJob
+from app.models import JobEvent, JobKind, JobState, PrintJob
 from app.services.crypto import unseal_otp
+from app.services.pricing import quote_print, quote_scan
 
 LEGAL = {
     JobState.UNPAID: {JobState.SLOT_RESERVED, JobState.CANCELLED},
@@ -30,6 +31,15 @@ def transit(db: Session, job: PrintJob, to: JobState, note: str | None = None) -
     return job
 
 
+def _original_amount(job: PrintJob) -> float:
+    """Full price before the off-peak discount, so the UI can show a struck-through original."""
+    if not job.offpeak:
+        return job.amount
+    if job.kind == JobKind.SCAN:
+        return quote_scan(job.page_count, False)
+    return quote_print(job.page_count, job.copies, job.color, job.duplex, False)
+
+
 def job_payload(job: PrintJob, include_otp: bool = False, for_vendor: bool = False) -> dict:
     data = {
         "id": job.id,
@@ -44,6 +54,7 @@ def job_payload(job: PrintJob, include_otp: bool = False, for_vendor: bool = Fal
         "copies": job.copies,
         "slot_start": job.slot_start.isoformat() if job.slot_start else None,
         "amount": job.amount,
+        "original_amount": _original_amount(job),
         "offpeak": job.offpeak,
         "queue_position": job.queue_position,
         "eta_minutes": job.eta_minutes,

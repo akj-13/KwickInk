@@ -63,6 +63,68 @@ export const api = {
   verifyOtp: (id, otp) => request(`/api/vendor/jobs/${id}/otp`, { method: "POST", body: JSON.stringify({ otp }) }),
 };
 
+function loadRazorpayScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Razorpay checkout script failed to load.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Razorpay checkout script failed to load."));
+    document.body.appendChild(script);
+  });
+}
+
+// Opens the real Razorpay Checkout modal for an order created with live keys
+// (order.gateway === "razorpay"). Resolves with the fields /payments/verify-payment
+// expects; rejects if the script isn't available, the user cancels, or payment fails.
+export async function openRazorpayCheckout(order, prefill = {}) {
+  await loadRazorpayScript();
+
+  const key = order?.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || "";
+  if (!key) {
+    throw new Error("Razorpay key is missing. Set VITE_RAZORPAY_KEY_ID in frontend/.env.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const rzp = new window.Razorpay({
+      key,
+      amount: order.amount,
+      currency: order.currency,
+      order_id: order.order_id,
+      name: "KwickInk",
+      description: "Campus print & scan payment",
+      prefill: { name: prefill.name, email: prefill.email },
+      theme: { color: "#22d3ee" },
+      handler: (response) => {
+        resolve({
+          order_id: response.razorpay_order_id,
+          payment_id: response.razorpay_payment_id,
+          signature: response.razorpay_signature,
+        });
+      },
+      modal: {
+        ondismiss: () => reject(new Error("Payment was cancelled.")),
+      },
+    });
+    rzp.on("payment.failed", (resp) => {
+      reject(new Error(resp?.error?.description || "Razorpay payment failed."));
+    });
+    rzp.open();
+  });
+}
+
 export function connectSocket(onMessage) {
   const token = getToken();
   if (!token) return null;

@@ -1,7 +1,7 @@
 import { CloudUpload, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, getUser, openRazorpayCheckout } from "../api";
 
 export default function PrintFlow() {
   const { id } = useParams();
@@ -47,43 +47,17 @@ export default function PrintFlow() {
     setError("");
     try {
       const order = await api.createOrder(job.id);
-      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
-      if (!keyId || !window.Razorpay) {
-        throw new Error("Razorpay is not configured for this app yet.");
+      if (order.gateway === "razorpay") {
+        const user = getUser();
+        const result = await openRazorpayCheckout(order, { name: user?.name, email: user?.email });
+        await api.verifyPayment(result);
+      } else {
+        await api.simulatePay(order.order_id);
       }
-
-      const razorpay = new window.Razorpay({
-        key: keyId,
-        amount: order.amount,
-        currency: order.currency,
-        name: "KwickInk",
-        description: `Payment for job #${job.id}`,
-        order_id: order.order_id,
-        handler: async function (response) {
-          const result = await api.verifyPayment({
-            order_id: response.razorpay_order_id,
-            payment_id: response.razorpay_payment_id,
-            signature: response.razorpay_signature,
-          });
-          nav(`/job/${result.job_id}`);
-        },
-        theme: { color: "#0f172a" },
-        modal: {
-          ondismiss: () => {
-            setError("Payment cancelled. No charge was made.");
-            setBusy(false);
-          },
-        },
-      });
-
-      razorpay.on("payment.failed", function (response) {
-        setError(response.error?.description || "Payment failed. Please try again.");
-        setBusy(false);
-      });
-
-      razorpay.open();
+      nav(`/job/${job.id}`);
     } catch (err) {
       setError(err.message);
+    } finally {
       setBusy(false);
     }
   }
@@ -108,10 +82,16 @@ export default function PrintFlow() {
         <>
           <div className="tech-card" style={{ marginBottom: 16 }}>
             <strong>{job.filename}</strong>
-            <p className="muted">
-              {job.page_count} pages · {job.lane || "lane pending"} · ₹{job.amount.toFixed(2)}
-              {job.offpeak ? " · 20% off-peak" : ""}
+            <p className="muted" style={{ marginBottom: 0 }}>
+              {job.page_count} pages · {job.lane || "lane pending"}
+              {job.offpeak ? " · 20% off-peak applied" : ""}
             </p>
+            <div className="price-display">
+              {job.offpeak && job.original_amount > job.amount && (
+                <span className="original">₹{job.original_amount.toFixed(2)}</span>
+              )}
+              <span>₹{job.amount.toFixed(2)}</span>
+            </div>
           </div>
           <div className="toggles card" style={{ marginBottom: 16 }}>
             <div className="toggle">
